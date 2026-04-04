@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZeroEthanol Admin</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --orange: #FF8C00;
+  --orange-dim: #FF8C0018;
+  --orange-border: #FF8C0050;
+  --bg: #0F0F0F;
+  --surface: #1A1A1A;
+  --surface2: #222222;
+  --surface3: #2A2A2A;
+  --border: #2C2C2C;
+  --text: #E0E0E0;
+  --muted: #777;
+  --green: #4CAF50;
+  --green-dim: #4CAF5018;
+  --red: #EF5350;
+  --red-dim: #EF535018;
+  --blue: #2196F3;
+  --blue-dim: #2196F318;
+  --gold: #FFD700;
+  --gold-dim: #FFD70018;
+  --mono: 'Courier New', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
+
+/* ── LAYOUT ── */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-ring { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--orange); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo h1 { font-size: 16px; font-weight: 700; color: var(--orange); }
+.logo span { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
+.auth-area { display: flex; align-items: center; gap: 10px; }
+.auth-name { font-size: 12px; color: var(--muted); }
+
+.shell { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+/* ── CONFIG PANEL ── */
+.config-panel {
+  background: var(--surface);
+  border: 1px solid var(--orange-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.config-panel summary { cursor: pointer; color: var(--orange); font-size: 13px; font-weight: 600; letter-spacing: 0.5px; list-style: none; display: flex; align-items: center; gap: 8px; }
+.config-panel summary::before { content: '▶'; font-size: 10px; transition: transform 0.2s; }
+details[open] .config-panel summary::before { transform: rotate(90deg); }
+.config-inner { margin-top: 16px; }
+.config-inner textarea {
+  width: 100%; height: 120px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  font-family: var(--mono); font-size: 12px;
+  padding: 12px; resize: vertical; outline: none;
+}
+.config-inner textarea:focus { border-color: var(--orange); }
+.note { background: var(--surface2); border-left: 3px solid var(--orange); border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 12px; }
+.note b { color: var(--text); }
+.note code { color: var(--orange); font-family: var(--mono); font-size: 11px; }
+
+/* ── TABS ── */
+.tab-nav { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+.tab-btn {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 13px; font-weight: 600; padding: 10px 18px;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.15s; letter-spacing: 0.3px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── CARDS / ROWS ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 700; letter-spacing: 1.3px; color: var(--orange); text-transform: uppercase; margin-bottom: 14px; }
+
+.item-row {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.item-row.blocked { border-color: #EF535044; background: var(--red-dim); }
+.item-info { flex: 1; min-width: 0; }
+.item-name { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.item-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex-shrink: 0; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; padding: 3px 8px;
+  border-radius: 4px; letter-spacing: 0.4px;
+}
+.badge-e0 { background: #FF8C0022; color: var(--orange); border: 1px solid var(--orange-border); }
+.badge-tt { background: #4CAF5022; color: var(--green); border: 1px solid #4CAF5044; }
+.badge-blocked { background: var(--red-dim); color: var(--red); border: 1px solid #EF535044; }
+.badge-elite { background: var(--gold-dim); color: var(--gold); border: 1px solid #FFD70044; }
+.badge-scout { background: #FF8C0018; color: var(--orange); border: 1px solid var(--orange-border); }
+.badge-contrib { background: var(--blue-dim); color: var(--blue); border: 1px solid #2196F344; }
+
+/* ── BUTTONS ── */
+.btn { background: var(--orange); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 10px 16px; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn-sm { padding: 6px 11px; font-size: 11px; border-radius: 6px; }
+.btn-outline { background: transparent; border: 1px solid var(--orange); color: var(--orange); }
+.btn-outline:hover { background: var(--orange-dim); opacity: 1; }
+.btn-red { background: transparent; border: 1px solid #EF535055; color: var(--red); }
+.btn-red:hover { background: var(--red-dim); opacity: 1; }
+.btn-green { background: transparent; border: 1px solid #4CAF5055; color: var(--green); }
+.btn-green:hover { background: var(--green-dim); opacity: 1; }
+.btn-blue { background: transparent; border: 1px solid #2196F355; color: var(--blue); }
+.btn-blue:hover { background: var(--blue-dim); opacity: 1; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.btn-ghost:hover { color: var(--text); border-color: #555; opacity: 1; }
+
+/* ── INPUTS ── */
+.search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; padding: 9px 12px; outline: none; }
+.search-row input:focus { border-color: var(--orange); }
+.filter-row { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-chip { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 20px; font-size: 11px; font-weight: 600; padding: 5px 12px; cursor: pointer; transition: all 0.15s; }
+.filter-chip.active { background: var(--orange-dim); border-color: var(--orange-border); color: var(--orange); }
+
+/* ── SIGN IN ── */
+.signin-wall { text-align: center; padding: 60px 20px; }
+.signin-wall h2 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+.signin-wall p { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+/* ── PENDING PRICES ── */
+.pending-list { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.pending-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+.pending-item:last-child { border-bottom: none; }
+
+/* ── PROMO ── */
+.code-row { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+.code-text { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--orange); letter-spacing: 2px; flex: 1; }
+.code-meta { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.copy-btn { background: var(--orange-dim); border: 1px solid var(--orange-border); color: var(--orange); border-radius: 6px; font-size: 11px; font-weight: 600; padding: 5px 10px; cursor: pointer; }
+.copy-btn.copied { background: var(--green-dim); border-color: #4CAF5044; color: var(--green); }
+
+/* ── MISC ── */
+.empty { color: var(--muted); font-size: 13px; text-align: center; padding: 32px 0; }
+.loading { color: var(--muted); font-size: 13px; padding: 20px 0; display: flex; align-items: center; gap: 8px; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; font-size: 13px; z-index: 999; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.toast.success { border-color: #4CAF5055; color: var(--green); }
+.toast.error { border-color: #EF535055; color: var(--red); }
+.section-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.section-hdr h3 { font-size: 13px; font-weight: 600; color: var(--text); }
+label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; padding: 9px 12px; outline: none; }
+select:focus { border-color: var(--orange); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.row > * { flex: 1; min-width: 130px; }
+hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+.firestore-block { background: #0D1117; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 12px; position: relative; }
+.firestore-block pre { font-family: var(--mono); font-size: 12px; color: #C9D1D9; white-space: pre-wrap; word-break: break-all; line-height: 1.7; }
+.copy-all-btn { position: absolute; top: 10px; right: 10px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; font-size: 11px; padding: 4px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-ring">⛽</div>
+    <div>
+      <h1>ZeroEthanol Admin</h1>
+      <span>Summit Deals LLC — Internal Tool</span>
+    </div>
+  </div>
+  <div class="auth-area">
+    <span class="auth-name" id="auth-name"></span>
+    <button class="btn btn-sm btn-outline" id="auth-btn" onclick="toggleAuth()">Sign In with Google</button>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- CONFIG -->
+  <details id="config-details">
+    <div class="config-panel">
+      <summary>Firebase Config</summary>
+      <div class="config-inner">
+        <label>Paste your Firebase config object (from Firebase Console → Project Settings → Your apps)</label>
+        <textarea id="fb-config" placeholder='{
+  "apiKey": "...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-sm" onclick="saveConfig()">Save & Connect</button>
+          <button class="btn btn-sm btn-ghost" onclick="clearConfig()">Clear Saved Config</button>
+        </div>
+        <div class="note" style="margin-top:12px;">
+          <b>Firestore rules:</b> Add this to your security rules so your account has full admin access:<br><br>
+          <code>function isAdmin() {<br>
+          &nbsp;&nbsp;return request.auth != null && request.auth.uid == "YOUR_UID_HERE";<br>
+          }<br><br>
+          // Then add || isAdmin() to any rule that needs admin override</code><br><br>
+          Your UID appears in the Users tab after you sign in.
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- SIGN IN WALL -->
+  <div class="signin-wall" id="signin-wall" style="display:none;">
+    <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+    <h2>Sign in to continue</h2>
+    <p>Use your Google account associated with this Firebase project.</p>
+    <button class="btn" onclick="toggleAuth()">Sign In with Google</button>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div id="main-content" style="display:none;">
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('stations')">Stations</button>
+      <button class="tab-btn" onclick="switchTab('users')">Users</button>
+      <button class="tab-btn" onclick="switchTab('promo')">Promo Codes</button>
+    </div>
+
+    <!-- ── STATIONS TAB ── -->
+    <div class="tab-panel active" id="tab-stations">
+      <div class="card">
+        <div class="card-title">Station Management</div>
+        <div class="search-row">
+          <input type="text" id="station-search" placeholder="Search by name or address..." oninput="filterStations()">
+          <button class="btn btn-sm btn-outline" onclick="loadStations()">Refresh</button>
+        </div>
+        <div class="filter-row">
+          <button class="filter-chip active" onclick="setStationFilter(this,'all')">All Approved</button>
+          <button class="filter-chip" onclick="setStationFilter(this,'e0')">E0 Only</button>
+          <button class="filter-chip" onclick="setStationFilter(this,'toptier')">Top Tier Only</button>
+          <button class="filter-chip" onclick="setStationFilter(this,'pending')">Pending Review</button>
+        </div>
+        <div id="stations-list"><div class="loading"><div class="spinner"></div> Loading stations...</div></div>
+      </div>
+    </div>
+
+    <!-- ── USERS TAB ── -->
+    <div class="tab-panel" id="tab-users">
+      <div class="card">
+        <div class="card-title">User Management</div>
+        <div class="search-row">
+          <input type="text" id="user-search" placeholder="Search by username..." oninput="filterUsers()">
+          <button class="btn btn-sm btn-outline" onclick="loadUsers()">Refresh</button>
+        </div>
+        <div class="filter-row">
+          <button class="filter-chip active" onclick="setUserFilter(this,'all')">All Users</button>
+          <button class="filter-chip" onclick="setUserFilter(this,'blocked')">Blocked</button>
+          <button class="filter-chip" onclick="setUserFilter(this,'elite')">Elite Fueler</button>
+          <button class="filter-chip" onclick="setUserFilter(this,'newcomer')">Newcomer</button>
+        </div>
+        <div id="users-list"><div class="loading"><div class="spinner"></div> Loading users...</div></div>
+      </div>
+    </div>
+
+    <!-- ── PROMO TAB ── -->
+    <div class="tab-panel" id="tab-promo">
+      <!-- Generator -->
+      <div class="card">
+        <div class="card-title">Generate Codes</div>
+        <div class="row" style="margin-bottom:14px;">
+          <div>
+            <label>Prefix (optional)</label>
+            <input type="text" id="prefix" placeholder="e.g. LAUNCH" maxlength="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;outline:none;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+          </div>
+          <div>
+            <label>Max uses</label>
+            <select id="maxUses" style="width:100%;">
+              <option value="1">1 — single use</option>
+              <option value="5">5 uses</option>
+              <option value="25">25 uses</option>
+              <option value="100">100 uses</option>
+              <option value="9999">Unlimited</option>
+            </select>
+          </div>
+          <div>
+            <label>Count</label>
+            <input type="number" id="gen-count" value="1" min="1" max="100" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;outline:none;">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" onclick="generateCodes()">Generate</button>
+          <button class="btn btn-outline" onclick="saveToFirestore()">Generate + Save to Firestore</button>
+        </div>
+        <div id="gen-output" style="margin-top:14px;"></div>
+      </div>
+
+      <!-- Existing codes -->
+      <div class="card">
+        <div class="section-hdr">
+          <h3>Existing Codes in Firestore</h3>
+          <button class="btn btn-sm btn-outline" onclick="loadPromoCodes()">Refresh</button>
+        </div>
+        <div id="promo-list"><div class="loading"><div class="spinner"></div> Loading codes...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let db = null, auth = null, currentUser = null;
+let allStations = [], allUsers = [], allCodes = [];
+let stationFilter = 'all', userFilter = 'all';
+let generatedBatch = [];
+
+// ── CONFIG ──
+function saveConfig() {
+  const raw = document.getElementById('fb-config').value.trim();
+  try {
+    const cfg = JSON.parse(raw);
+    localStorage.setItem('ze_admin_config', JSON.stringify(cfg));
+    initFirebase(cfg);
+    toast('Firebase connected!', 'success');
+    document.getElementById('config-details').removeAttribute('open');
+  } catch(e) {
+    toast('Invalid JSON config', 'error');
+  }
+}
+function clearConfig() {
+  localStorage.removeItem('ze_admin_config');
+  toast('Config cleared. Reload page.', 'success');
+}
+function loadSavedConfig() {
+  const saved = localStorage.getItem('ze_admin_config');
+  if (saved) {
+    document.getElementById('fb-config').value = saved;
+    try { initFirebase(JSON.parse(saved)); } catch(_) {}
+  } else {
+    document.getElementById('config-details').setAttribute('open','');
+  }
+}
+
+// ── FIREBASE INIT ──
+function initFirebase(cfg) {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    else firebase.app(); // already initialized
+    db = firebase.firestore();
+    auth = firebase.auth();
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      updateAuthUI();
+      if (user) {
+        document.getElementById('signin-wall').style.display = 'none';
+        document.getElementById('main-content').style.display = 'block';
+        loadStations();
+        loadUsers();
+        loadPromoCodes();
+      } else {
+        document.getElementById('signin-wall').style.display = 'block';
+        document.getElementById('main-content').style.display = 'none';
+      }
+    });
+  } catch(e) {
+    // App already initialized — get existing
+    db = firebase.firestore();
+    auth = firebase.auth();
+  }
+}
+
+function updateAuthUI() {
+  const btn = document.getElementById('auth-btn');
+  const name = document.getElementById('auth-name');
+  if (currentUser) {
+    btn.textContent = 'Sign Out';
+    name.textContent = currentUser.email + ' • UID: ' + currentUser.uid;
+  } else {
+    btn.textContent = 'Sign In with Google';
+    name.textContent = '';
+  }
+}
+function toggleAuth() {
+  if (!auth) { toast('Configure Firebase first', 'error'); document.getElementById('config-details').setAttribute('open',''); return; }
+  if (currentUser) {
+    auth.signOut();
+  } else {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(e => toast('Sign-in failed: ' + e.message, 'error'));
+  }
+}
+
+// ── TAB SWITCHING ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['stations','users','promo'][i] === name));
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', ['tab-stations','tab-users','tab-promo'][i] === 'tab-'+name));
+}
+
+// ════════════════════════════════════════════
+// ── STATIONS ──
+// ════════════════════════════════════════════
+async function loadStations() {
+  if (!db) return;
+  const list = document.getElementById('stations-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    let q = db.collection('stations');
+    if (stationFilter === 'pending') {
+      q = q.where('status', '==', 'pending');
+    } else {
+      q = q.where('status', '==', 'approved');
+      if (stationFilter === 'e0') q = q.where('isEthanolFree', '==', true);
+      if (stationFilter === 'toptier') q = q.where('isTopTier', '==', true);
+    }
+    const snap = await q.limit(100).get();
+    allStations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderStations();
+  } catch(e) { list.innerHTML = '<div class="empty">Error loading stations: ' + e.message + '</div>'; }
+}
+
+function setStationFilter(btn, f) {
+  stationFilter = f;
+  document.querySelectorAll('#tab-stations .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  loadStations();
+}
+
+function filterStations() {
+  renderStations();
+}
+
+function renderStations() {
+  const q = document.getElementById('station-search').value.toLowerCase();
+  const filtered = allStations.filter(s =>
+    !q || s.name?.toLowerCase().includes(q) || s.address?.toLowerCase().includes(q)
+  );
+  const list = document.getElementById('stations-list');
+  if (!filtered.length) { list.innerHTML = '<div class="empty">No stations found.</div>'; return; }
+  list.innerHTML = filtered.map(s => `
+    <div class="item-row" id="srow-${s.id}">
+      <div class="item-info">
+        <div class="item-name">${s.name || 'Unnamed Station'}</div>
+        <div class="item-sub">
+          ${s.address || ''}
+          <span style="margin-left:8px;">
+            ${s.isEthanolFree ? '<span class="badge badge-e0">E0</span>' : ''}
+            ${s.isTopTier ? '<span class="badge badge-tt">Top Tier</span>' : ''}
+          </span>
+        </div>
+      </div>
+      <div class="item-actions">
+        ${s.isEthanolFree ? `<button class="btn btn-sm btn-red" onclick="removeE0('${s.id}')">Remove E0</button>` : ''}
+        ${s.isTopTier ? `<button class="btn btn-sm btn-red" onclick="removeTopTier('${s.id}')">Remove Top Tier</button>` : ''}
+        <button class="btn btn-sm btn-blue" onclick="togglePending('${s.id}')">Pending Prices</button>
+        <button class="btn btn-sm btn-ghost" onclick="deactivateStation('${s.id}')">Deactivate</button>
+      </div>
+    </div>
+    <div id="pending-${s.id}" style="display:none;margin:-4px 0 8px 0;padding:12px 16px;background:var(--surface3);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">PENDING PRICE REPORTS</div>
+      <div id="pending-inner-${s.id}"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  `).join('');
+}
+
+async function removeE0(id) {
+  if (!confirm('Mark this station as NOT ethanol-free? This will remove its E0 tag.')) return;
+  try {
+    await db.collection('stations').doc(id).update({ isEthanolFree: false });
+    allStations = allStations.map(s => s.id === id ? { ...s, isEthanolFree: false } : s);
+    renderStations();
+    toast('E0 tag removed', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function removeTopTier(id) {
+  if (!confirm('Mark this station as NOT Top Tier?')) return;
+  try {
+    await db.collection('stations').doc(id).update({ isTopTier: false });
+    allStations = allStations.map(s => s.id === id ? { ...s, isTopTier: false } : s);
+    renderStations();
+    toast('Top Tier tag removed', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deactivateStation(id) {
+  if (!confirm('Deactivate this station? It will no longer appear in the app.')) return;
+  try {
+    await db.collection('stations').doc(id).update({ status: 'deactivated' });
+    allStations = allStations.filter(s => s.id !== id);
+    renderStations();
+    toast('Station deactivated', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function togglePending(id) {
+  const el = document.getElementById('pending-' + id);
+  const inner = document.getElementById('pending-inner-' + id);
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    inner.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+      const snap = await db.collection('stations').doc(id).collection('pendingPrices').orderBy('submittedAt', 'desc').limit(20).get();
+      if (snap.empty) { inner.innerHTML = '<div style="color:var(--muted);font-size:12px;">No pending prices.</div>'; return; }
+      inner.innerHTML = snap.docs.map(d => {
+        const data = d.data();
+        const ts = data.submittedAt?.toDate?.()?.toLocaleString() ?? '—';
+        return `<div class="pending-item">
+          <span style="color:var(--text);">${data.grade} — <b>$${Number(data.price).toFixed(2)}</b></span>
+          <span style="color:var(--muted);">${data.userId?.substring(0,8)}... · ${ts}</span>
+          <button class="btn btn-sm btn-red" onclick="deletePending('${id}','${d.id}')">Delete</button>
+        </div>`;
+      }).join('') +
+      `<div style="margin-top:10px;"><button class="btn btn-sm btn-red" onclick="clearAllPending('${id}')">Clear All Pending</button></div>`;
+    } catch(e) { inner.innerHTML = '<div style="color:var(--red);font-size:12px;">' + e.message + '</div>'; }
+  }
+}
+
+async function deletePending(stationId, docId) {
+  try {
+    await db.collection('stations').doc(stationId).collection('pendingPrices').doc(docId).delete();
+    await togglePending(stationId); await togglePending(stationId);
+    toast('Pending price deleted', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function clearAllPending(stationId) {
+  if (!confirm('Delete ALL pending price reports for this station?')) return;
+  try {
+    const snap = await db.collection('stations').doc(stationId).collection('pendingPrices').get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    document.getElementById('pending-' + stationId).style.display = 'none';
+    toast('All pending prices cleared', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ════════════════════════════════════════════
+// ── USERS ──
+// ════════════════════════════════════════════
+async function loadUsers() {
+  if (!db) return;
+  const list = document.getElementById('users-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    const snap = await db.collection('users').orderBy('submissionCount', 'desc').limit(200).get();
+    allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderUsers();
+  } catch(e) { list.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; }
+}
+
+function setUserFilter(btn, f) {
+  userFilter = f;
+  document.querySelectorAll('#tab-users .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  renderUsers();
+}
+function filterUsers() { renderUsers(); }
+
+function tierFor(count) {
+  if (count >= 250) return { name: 'Elite Fueler', cls: 'badge-elite' };
+  if (count >= 100) return { name: 'Fuel Scout', cls: 'badge-scout' };
+  if (count >= 25)  return { name: 'Contributor', cls: 'badge-contrib' };
+  if (count >= 5)   return { name: 'Reporter', cls: '' };
+  return { name: 'Newcomer', cls: '' };
+}
+
+function renderUsers() {
+  const q = document.getElementById('user-search').value.toLowerCase();
+  let filtered = allUsers.filter(u => {
+    const uname = (u.username || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    if (q && !uname.includes(q) && !email.includes(q)) return false;
+    if (userFilter === 'blocked' && !u.blocked) return false;
+    if (userFilter === 'elite' && (u.submissionCount || 0) < 250) return false;
+    if (userFilter === 'newcomer' && (u.submissionCount || 0) >= 5) return false;
+    return true;
+  });
+  const list = document.getElementById('users-list');
+  if (!filtered.length) { list.innerHTML = '<div class="empty">No users found.</div>'; return; }
+  list.innerHTML = filtered.map(u => {
+    const count = u.submissionCount || 0;
+    const tier = tierFor(count);
+    const isBlocked = u.blocked === true;
+    return `<div class="item-row ${isBlocked ? 'blocked' : ''}" id="urow-${u.id}">
+      <div class="item-info">
+        <div class="item-name">
+          ${u.username ? '@' + u.username : '<span style="color:var(--muted);">No username</span>'}
+          ${isBlocked ? '<span class="badge badge-blocked" style="margin-left:6px;">BLOCKED</span>' : ''}
+          ${tier.cls ? `<span class="badge ${tier.cls}" style="margin-left:6px;">${tier.name}</span>` : ''}
+        </div>
+        <div class="item-sub">
+          ${u.email || ''}${u.email ? ' · ' : ''}
+          UID: ${u.id.substring(0,12)}... · 
+          ${count} reports · Trust: ${u.trustScore || 0}
+        </div>
+      </div>
+      <div class="item-actions">
+        ${isBlocked
+          ? `<button class="btn btn-sm btn-green" onclick="unblockUser('${u.id}')">Unblock</button>`
+          : `<button class="btn btn-sm btn-red" onclick="blockUser('${u.id}')">Block</button>`
+        }
+        <button class="btn btn-sm btn-ghost" onclick="resetSubmissions('${u.id}')">Reset Count</button>
+        <button class="btn btn-sm btn-blue" onclick="grantAdFree('${u.id}')">Grant Ad-Free</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function blockUser(uid) {
+  if (!confirm('Block this user? They will be prevented from submitting prices.')) return;
+  try {
+    await db.collection('users').doc(uid).update({ blocked: true });
+    allUsers = allUsers.map(u => u.id === uid ? { ...u, blocked: true } : u);
+    renderUsers();
+    toast('User blocked', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function unblockUser(uid) {
+  try {
+    await db.collection('users').doc(uid).update({ blocked: false });
+    allUsers = allUsers.map(u => u.id === uid ? { ...u, blocked: false } : u);
+    renderUsers();
+    toast('User unblocked', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function resetSubmissions(uid) {
+  if (!confirm('Reset this user\'s submission count to 0? This cannot be undone.')) return;
+  try {
+    await db.collection('users').doc(uid).update({ submissionCount: 0, trustScore: 0 });
+    allUsers = allUsers.map(u => u.id === uid ? { ...u, submissionCount: 0, trustScore: 0 } : u);
+    renderUsers();
+    toast('Submission count reset', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function grantAdFree(uid) {
+  try {
+    await db.collection('users').doc(uid).update({ adsRemoved: true });
+    toast('Ad-free granted', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ════════════════════════════════════════════
+// ── PROMO CODES ──
+// ════════════════════════════════════════════
+function uid6(len) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+function buildCode(prefix) {
+  const base = uid6(6);
+  return prefix ? `${prefix}-${base}` : base;
+}
+
+function generateCodes() {
+  const prefix = document.getElementById('prefix').value.trim();
+  const maxUses = parseInt(document.getElementById('maxUses').value);
+  const count = Math.min(100, Math.max(1, parseInt(document.getElementById('gen-count').value) || 1));
+  const used = new Set();
+  generatedBatch = [];
+  while (generatedBatch.length < count) {
+    const code = buildCode(prefix);
+    if (!used.has(code)) { used.add(code); generatedBatch.push({ code, maxUses, uses: 0, active: true }); }
+  }
+  renderGenOutput();
+}
+
+function renderGenOutput() {
+  const out = document.getElementById('gen-output');
+  if (!generatedBatch.length) { out.innerHTML = ''; return; }
+  out.innerHTML = generatedBatch.map(item => `
+    <div class="code-row">
+      <span class="code-text">${item.code}</span>
+      <span class="code-meta">${item.maxUses === 9999 ? 'Unlimited' : item.maxUses + ' use' + (item.maxUses > 1 ? 's' : '')}</span>
+      <button class="copy-btn" onclick="copyText(this,'${item.code}')">Copy</button>
+    </div>`).join('') +
+    `<div class="firestore-block" style="margin-top:12px;">
+      <button class="copy-all-btn" onclick="copyJSON()">Copy JSON</button>
+      <pre>${generatedBatch.map(item => JSON.stringify({ _docId: item.code, active: true, uses: 0, maxUses: item.maxUses, createdAt: new Date().toISOString() }, null, 2)).join('\n\n')}</pre>
+    </div>`;
+}
+
+async function saveToFirestore() {
+  generateCodes();
+  if (!generatedBatch.length || !db) { toast('Generate codes first or check Firebase config', 'error'); return; }
+  try {
+    const batch = db.batch();
+    generatedBatch.forEach(item => {
+      const ref = db.collection('promoCodes').doc(item.code);
+      batch.set(ref, { active: true, uses: 0, maxUses: item.maxUses, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+    await batch.commit();
+    toast(`${generatedBatch.length} code(s) saved to Firestore`, 'success');
+    loadPromoCodes();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function loadPromoCodes() {
+  if (!db) return;
+  const list = document.getElementById('promo-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    const snap = await db.collection('promoCodes').orderBy('createdAt', 'desc').limit(100).get();
+    allCodes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderCodes();
+  } catch(e) { list.innerHTML = '<div class="empty">No codes found or insufficient permissions.</div>'; }
+}
+
+function renderCodes() {
+  const list = document.getElementById('promo-list');
+  if (!allCodes.length) { list.innerHTML = '<div class="empty">No promo codes yet.</div>'; return; }
+  list.innerHTML = allCodes.map(c => `
+    <div class="code-row">
+      <span class="code-text" style="${!c.active ? 'opacity:0.4;text-decoration:line-through;' : ''}">${c.id}</span>
+      <span class="code-meta">${c.uses || 0} / ${c.maxUses === 9999 ? '∞' : c.maxUses} used</span>
+      <span class="badge ${c.active ? 'badge-tt' : 'badge-blocked'}">${c.active ? 'ACTIVE' : 'INACTIVE'}</span>
+      <button class="copy-btn ${c.active ? '' : 'copied'}" onclick="toggleCode('${c.id}',${c.active})">${c.active ? 'Deactivate' : 'Activate'}</button>
+      <button class="copy-btn" onclick="copyText(this,'${c.id}')">Copy</button>
+    </div>`).join('');
+}
+
+async function toggleCode(id, currentActive) {
+  try {
+    await db.collection('promoCodes').doc(id).update({ active: !currentActive });
+    allCodes = allCodes.map(c => c.id === id ? { ...c, active: !currentActive } : c);
+    renderCodes();
+    toast(currentActive ? 'Code deactivated' : 'Code activated', 'success');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1600);
+  });
+}
+function copyJSON() {
+  const text = generatedBatch.map(item => JSON.stringify({ _docId: item.code, active: true, uses: 0, maxUses: item.maxUses }, null, 2)).join('\n\n');
+  navigator.clipboard.writeText(text).then(() => toast('JSON copied', 'success'));
+}
+
+// ── TOAST ──
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ── INIT ──
+loadSavedConfig();
+</script>
+</body>
+</html>
